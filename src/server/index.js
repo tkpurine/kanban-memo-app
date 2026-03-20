@@ -3,14 +3,22 @@ const path = require('path');
 const fs = require('fs');
 const { initDb, getDb, closeDb } = require('./db');
 const createRoutes = require('./routes');
+const { authMiddleware, loginHandler, authCheckHandler } = require('./auth');
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 let storageFolder = null;
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '../client')));
+
+// Auth endpoints (before middleware)
+app.post('/api/auth/login', loginHandler);
+app.get('/api/auth/check', authCheckHandler);
+
+// Auth middleware for all other /api routes
+app.use(authMiddleware);
 
 // Get current folder config
 app.get('/api/config/folder', (req, res) => {

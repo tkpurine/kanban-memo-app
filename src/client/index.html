@@ -5,8 +5,25 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Kanban Memo</title>
   <link rel="stylesheet" href="css/style.css">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <meta name="theme-color" content="#4a90d9">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="apple-touch-icon" href="icons/icon.svg">
 </head>
 <body>
+  <!-- Login modal -->
+  <div id="login-modal" class="modal-overlay hidden">
+    <div class="modal-content">
+      <h2>Login</h2>
+      <p>Enter the password to access Kanban Memo.</p>
+      <input type="password" id="login-input" placeholder="Password">
+      <button id="login-submit">Login</button>
+      <p id="login-error" class="error"></p>
+    </div>
+  </div>
+
   <!-- Folder config modal -->
   <div id="folder-modal" class="modal-overlay">
     <div class="modal-content">

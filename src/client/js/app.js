@@ -1,3 +1,10 @@
+// --- PWA: Register Service Worker ---
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
+
 // --- State ---
 const state = {
   session: null,
@@ -5,15 +12,28 @@ const state = {
   viewMode: 'kanban'
 };
 
+// --- Auth Token ---
+let authToken = localStorage.getItem('kanban_auth_token') || '';
+
 // --- API Helper ---
 async function api(method, path, body) {
   const opts = {
     method,
     headers: { 'Content-Type': 'application/json' }
   };
+  if (authToken) {
+    opts.headers['X-Auth-Token'] = authToken;
+  }
   if (body) opts.body = JSON.stringify(body);
   const res = await fetch(path, opts);
   const data = await res.json();
+  if (res.status === 401) {
+    // Token expired or invalid — show login
+    localStorage.removeItem('kanban_auth_token');
+    authToken = '';
+    location.reload();
+    throw new Error('Session expired. Please log in again.');
+  }
   if (!res.ok) {
     throw new Error(data.error || 'Request failed');
   }
@@ -22,45 +42,104 @@ async function api(method, path, body) {
 
 // --- Initialization ---
 document.addEventListener('DOMContentLoaded', async () => {
+  const loginModal = document.getElementById('login-modal');
+  const loginInput = document.getElementById('login-input');
+  const loginSubmit = document.getElementById('login-submit');
+  const loginError = document.getElementById('login-error');
   const folderModal = document.getElementById('folder-modal');
   const folderInput = document.getElementById('folder-input');
   const folderSubmit = document.getElementById('folder-submit');
   const folderError = document.getElementById('folder-error');
   const appEl = document.getElementById('app');
 
-  // Check if folder is already configured
+  // Check if auth is required
   try {
-    const config = await api('GET', '/api/config/folder');
-    if (config.folder) {
+    const authCheck = await fetch('/api/auth/check').then(r => r.json());
+    if (authCheck.authRequired && !authToken) {
+      loginModal.classList.remove('hidden');
       folderModal.classList.add('hidden');
-      appEl.classList.remove('hidden');
-      await loadApp();
+      setupLogin();
       return;
     }
   } catch { /* ignore */ }
 
-  // Folder modal handlers
-  async function submitFolder() {
-    const folder = folderInput.value.trim();
-    if (!folder) {
-      folderError.textContent = 'Please enter a folder path.';
-      return;
+  await proceedAfterAuth();
+
+  // Login handlers
+  function setupLogin() {
+    async function submitLogin() {
+      const password = loginInput.value;
+      if (!password) {
+        loginError.textContent = 'Please enter a password.';
+        return;
+      }
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          loginError.textContent = data.error || 'Login failed';
+          return;
+        }
+        authToken = data.token;
+        localStorage.setItem('kanban_auth_token', authToken);
+        loginError.textContent = '';
+        loginModal.classList.add('hidden');
+        await proceedAfterAuth();
+      } catch (err) {
+        loginError.textContent = err.message;
+      }
     }
-    try {
-      await api('POST', '/api/config/folder', { folder });
-      folderError.textContent = '';
-      folderModal.classList.add('hidden');
-      appEl.classList.remove('hidden');
-      await loadApp();
-    } catch (err) {
-      folderError.textContent = err.message;
-    }
+
+    loginSubmit.addEventListener('click', submitLogin);
+    loginInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') submitLogin();
+    });
   }
 
-  folderSubmit.addEventListener('click', submitFolder);
-  folderInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') submitFolder();
-  });
+  // After auth, check folder config
+  async function proceedAfterAuth() {
+    try {
+      const config = await api('GET', '/api/config/folder');
+      if (config.folder) {
+        folderModal.classList.add('hidden');
+        appEl.classList.remove('hidden');
+        await loadApp();
+        return;
+      }
+    } catch { /* ignore */ }
+
+    folderModal.classList.remove('hidden');
+    setupFolderModal();
+  }
+
+  // Folder modal handlers
+  function setupFolderModal() {
+    async function submitFolder() {
+      const folder = folderInput.value.trim();
+      if (!folder) {
+        folderError.textContent = 'Please enter a folder path.';
+        return;
+      }
+      try {
+        await api('POST', '/api/config/folder', { folder });
+        folderError.textContent = '';
+        folderModal.classList.add('hidden');
+        appEl.classList.remove('hidden');
+        await loadApp();
+      } catch (err) {
+        folderError.textContent = err.message;
+      }
+    }
+
+    folderSubmit.addEventListener('click', submitFolder);
+    folderInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') submitFolder();
+    });
+  }
 });
 
 // --- Load App ---
