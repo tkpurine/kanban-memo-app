@@ -1,7 +1,8 @@
 // --- State ---
 const state = {
   session: null,
-  tags: []
+  tags: [],
+  viewMode: 'kanban'
 };
 
 // --- API Helper ---
@@ -78,6 +79,39 @@ async function loadApp() {
   initEventHandlers();
 }
 
+// --- View Mode ---
+function switchViewMode(mode) {
+  state.viewMode = mode;
+  const board = document.getElementById('board');
+  const listView = document.getElementById('list-view');
+  const kanbanBtn = document.getElementById('kanban-view-btn');
+  const listBtn = document.getElementById('list-view-btn');
+
+  if (mode === 'kanban') {
+    board.classList.remove('hidden');
+    listView.classList.add('hidden');
+    kanbanBtn.classList.add('active');
+    listBtn.classList.remove('active');
+    renderBoard();
+    initTagSortable();
+  } else {
+    board.classList.add('hidden');
+    listView.classList.remove('hidden');
+    kanbanBtn.classList.remove('active');
+    listBtn.classList.add('active');
+    renderListView();
+  }
+}
+
+// --- Render: current view ---
+function renderCurrentView() {
+  if (state.viewMode === 'list') {
+    renderListView();
+  } else {
+    renderBoard();
+  }
+}
+
 // --- Render: Session Info ---
 function renderSessionInfo() {
   const el = document.getElementById('session-time');
@@ -137,7 +171,7 @@ function createTaskCard(task) {
         const updated = await api('DELETE', `/api/task/${task.id}/tags/${tagId}`);
         const idx = state.session.tasks.findIndex(t => t.id === task.id);
         if (idx !== -1) state.session.tasks[idx] = updated;
-        renderBoard();
+        renderCurrentView();
       } catch (err) {
         alert(err.message);
       }
@@ -149,6 +183,94 @@ function createTaskCard(task) {
 
   card.appendChild(tagsContainer);
   return card;
+}
+
+// --- Render: List View ---
+function renderListView() {
+  const container = document.getElementById('list-task-list');
+  container.innerHTML = '';
+
+  if (!state.session) return;
+
+  const visibleTasks = state.session.tasks.filter(t => t.status !== 'done');
+
+  visibleTasks.forEach(task => {
+    const row = document.createElement('div');
+    row.className = 'list-task-row';
+    row.dataset.taskId = task.id;
+
+    const handle = document.createElement('span');
+    handle.className = 'list-drag-handle';
+    handle.textContent = '≡';
+    row.appendChild(handle);
+
+    const content = document.createElement('div');
+    content.className = 'list-task-content';
+    content.textContent = task.content;
+    row.appendChild(content);
+
+    const tagsContainer = document.createElement('div');
+    tagsContainer.className = 'task-tags list-task-tags';
+    task.tagIds.forEach(tagId => {
+      const tag = state.tags.find(t => t.id === tagId);
+      if (!tag) return;
+
+      const badge = document.createElement('span');
+      badge.className = 'tag-badge';
+      badge.textContent = tag.name;
+
+      const removeBtn = document.createElement('span');
+      removeBtn.className = 'tag-remove';
+      removeBtn.textContent = '×';
+      removeBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        try {
+          const updated = await api('DELETE', `/api/task/${task.id}/tags/${tagId}`);
+          const idx = state.session.tasks.findIndex(t => t.id === task.id);
+          if (idx !== -1) state.session.tasks[idx] = updated;
+          renderListView();
+        } catch (err) {
+          alert(err.message);
+        }
+      });
+
+      badge.appendChild(removeBtn);
+      tagsContainer.appendChild(badge);
+    });
+    row.appendChild(tagsContainer);
+
+    const statusSelect = document.createElement('select');
+    statusSelect.className = 'list-status-select';
+    [
+      { value: 'todo', label: 'Todo' },
+      { value: 'in_progress', label: 'In Progress' },
+      { value: 'waiting', label: 'Waiting' }
+    ].forEach(opt => {
+      const option = document.createElement('option');
+      option.value = opt.value;
+      option.textContent = opt.label;
+      if (task.status === opt.value) option.selected = true;
+      statusSelect.appendChild(option);
+    });
+
+    statusSelect.addEventListener('change', async (e) => {
+      e.stopPropagation();
+      try {
+        const updated = await api('PUT', `/api/task/${task.id}`, { status: statusSelect.value });
+        const idx = state.session.tasks.findIndex(t => t.id === task.id);
+        if (idx !== -1) state.session.tasks[idx] = updated;
+      } catch (err) {
+        alert(err.message);
+        renderListView();
+      }
+    });
+
+    row.appendChild(statusSelect);
+    container.appendChild(row);
+  });
+
+  initListSortable();
+  initTagSortable();
 }
 
 // --- Render: Tags ---
@@ -170,6 +292,7 @@ function renderTags() {
 
 // --- SortableJS Setup ---
 let tagSortableInstance = null;
+let listSortableInstance = null;
 
 function initSortable() {
   // Task columns — drag tasks between columns
@@ -195,6 +318,38 @@ function initSortable() {
   });
 }
 
+function initListSortable() {
+  if (listSortableInstance) {
+    listSortableInstance.destroy();
+    listSortableInstance = null;
+  }
+
+  const container = document.getElementById('list-task-list');
+  listSortableInstance = new Sortable(container, {
+    animation: 150,
+    handle: '.list-drag-handle',
+    ghostClass: 'sortable-ghost',
+    chosenClass: 'sortable-chosen',
+    onEnd: async () => {
+      const visibleTaskIds = [...container.querySelectorAll('.list-task-row')].map(el => el.dataset.taskId);
+      const doneTaskIds = state.session.tasks.filter(t => t.status === 'done').map(t => t.id);
+      const allTaskIds = [...visibleTaskIds, ...doneTaskIds];
+      try {
+        await api('PUT', '/api/tasks/order', { taskIds: allTaskIds });
+        const reordered = [];
+        allTaskIds.forEach(id => {
+          const task = state.session.tasks.find(t => t.id === id);
+          if (task) reordered.push(task);
+        });
+        state.session.tasks = reordered;
+      } catch (err) {
+        alert(err.message);
+        renderListView();
+      }
+    }
+  });
+}
+
 function initTagSortable() {
   // Destroy previous instance to avoid duplicates
   if (tagSortableInstance) {
@@ -216,8 +371,8 @@ function initTagSortable() {
         evt.item.remove();
       }
 
-      // Find the task card the tag was dropped onto
-      const cardEl = evt.to.closest('.task-card');
+      // Find the task element the tag was dropped onto (kanban card or list row)
+      const cardEl = evt.to.closest('.task-card') || evt.to.closest('.list-task-row');
       if (!cardEl) return;
 
       const taskId = cardEl.dataset.taskId;
@@ -230,14 +385,14 @@ function initTagSortable() {
         const updated = await api('PUT', `/api/task/${taskId}`, { tagIds: newTagIds });
         const idx = state.session.tasks.findIndex(t => t.id === taskId);
         if (idx !== -1) state.session.tasks[idx] = updated;
-        renderBoard();
+        renderCurrentView();
       } catch (err) {
         alert(err.message);
       }
     }
   });
 
-  // Make each task card accept tag drops
+  // Make each kanban task card accept tag drops
   document.querySelectorAll('.task-card').forEach(card => {
     new Sortable(card, {
       group: {
@@ -261,7 +416,38 @@ function initTagSortable() {
           const updated = await api('PUT', `/api/task/${taskId}`, { tagIds: newTagIds });
           const idx = state.session.tasks.findIndex(t => t.id === taskId);
           if (idx !== -1) state.session.tasks[idx] = updated;
-          renderBoard();
+          renderCurrentView();
+        } catch (err) {
+          alert(err.message);
+        }
+      }
+    });
+  });
+
+  // Make each list task row accept tag drops
+  document.querySelectorAll('.list-task-row').forEach(row => {
+    new Sortable(row, {
+      group: {
+        name: 'tags',
+        pull: false,
+        put: true
+      },
+      sort: false,
+      onAdd: async (evt) => {
+        const tagId = evt.item.dataset.tagId;
+        const taskId = row.dataset.taskId;
+
+        evt.item.remove();
+
+        const task = state.session.tasks.find(t => t.id === taskId);
+        if (!task || task.tagIds.includes(tagId)) return;
+
+        try {
+          const newTagIds = [...task.tagIds, tagId];
+          const updated = await api('PUT', `/api/task/${taskId}`, { tagIds: newTagIds });
+          const idx = state.session.tasks.findIndex(t => t.id === taskId);
+          if (idx !== -1) state.session.tasks[idx] = updated;
+          renderListView();
         } catch (err) {
           alert(err.message);
         }
@@ -283,7 +469,7 @@ function initEventHandlers() {
       const task = await api('POST', '/api/task', { content });
       state.session.tasks.push(task);
       taskInput.value = '';
-      renderBoard();
+      renderCurrentView();
     } catch (err) {
       alert(err.message);
     }
@@ -301,7 +487,7 @@ function initEventHandlers() {
       const session = await api('POST', '/api/session/new');
       state.session = session;
       renderSessionInfo();
-      renderBoard();
+      renderCurrentView();
     } catch (err) {
       alert(err.message);
     }
@@ -328,4 +514,8 @@ function initEventHandlers() {
   tagInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') addTag();
   });
+
+  // View toggle
+  document.getElementById('kanban-view-btn').addEventListener('click', () => switchViewMode('kanban'));
+  document.getElementById('list-view-btn').addEventListener('click', () => switchViewMode('list'));
 }
