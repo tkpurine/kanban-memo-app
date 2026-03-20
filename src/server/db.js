@@ -1,20 +1,37 @@
-const Database = require('better-sqlite3');
+const { createClient } = require('@libsql/client');
 const path = require('path');
+const fs = require('fs');
 
 const DB_FILE = 'kanban.db';
 
-let db = null;
+let client = null;
 
-function initDb(folderPath) {
-  if (db) {
-    db.close();
+async function initDb(folderOrUrl) {
+  if (client) {
+    client.close();
   }
 
-  db = new Database(path.join(folderPath, DB_FILE));
-  db.pragma('journal_mode = WAL');
-  db.pragma('foreign_keys = ON');
+  // Turso cloud mode: TURSO_DATABASE_URL is set
+  const tursoUrl = process.env.TURSO_DATABASE_URL;
+  const tursoToken = process.env.TURSO_AUTH_TOKEN;
 
-  db.exec(`
+  if (tursoUrl) {
+    // Cloud mode: connect to Turso
+    client = createClient({
+      url: tursoUrl,
+      authToken: tursoToken,
+    });
+    console.log('Connected to Turso cloud database');
+  } else {
+    // Local mode: use local SQLite file
+    const dbPath = path.join(folderOrUrl, DB_FILE);
+    client = createClient({
+      url: `file:${dbPath}`,
+    });
+    console.log(`Connected to local database: ${dbPath}`);
+  }
+
+  await client.executeMultiple(`
     CREATE TABLE IF NOT EXISTS sessions (
       id         TEXT PRIMARY KEY,
       started_at TEXT NOT NULL,
@@ -45,17 +62,17 @@ function initDb(folderPath) {
     CREATE INDEX IF NOT EXISTS idx_tasks_sort ON tasks(session_id, sort_order);
   `);
 
-  return db;
+  return client;
 }
 
 function getDb() {
-  return db;
+  return client;
 }
 
 function closeDb() {
-  if (db) {
-    db.close();
-    db = null;
+  if (client) {
+    client.close();
+    client = null;
   }
 }
 

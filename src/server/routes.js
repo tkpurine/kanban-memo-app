@@ -31,12 +31,16 @@ function createRoutes(getDb) {
 
   // --- Migration ---
 
-  router.post('/migrate', (req, res) => {
+  router.post('/migrate', async (req, res) => {
     const db = requireDb(res);
     if (!db) return;
 
     // Gather JSON data from old files
     const folder = req.app.locals.storageFolder;
+    if (!folder) {
+      return res.status(400).json({ error: 'No storage folder configured for migration' });
+    }
+
     const jsonData = { sessions: [], tags: [] };
 
     // Read kanban-data.json if exists
@@ -72,55 +76,60 @@ function createRoutes(getDb) {
       }
     }
 
-    const importedSessions = q.importJsonData(db, jsonData);
-    const totalSessions = db.prepare('SELECT COUNT(*) AS cnt FROM sessions').get().cnt;
-    const totalTags = db.prepare('SELECT COUNT(*) AS cnt FROM tags').get().cnt;
+    const importedSessions = await q.importJsonData(db, jsonData);
+    const totalSessionsResult = await db.execute('SELECT COUNT(*) AS cnt FROM sessions');
+    const totalTagsResult = await db.execute('SELECT COUNT(*) AS cnt FROM tags');
 
-    res.json({ success: true, importedSessions, totalSessions, totalTags });
+    res.json({
+      success: true,
+      importedSessions,
+      totalSessions: totalSessionsResult.rows[0].cnt,
+      totalTags: totalTagsResult.rows[0].cnt
+    });
   });
 
   // --- Session Routes ---
 
   // GET /api/session/current
-  router.get('/session/current', (req, res) => {
+  router.get('/session/current', async (req, res) => {
     const db = requireDb(res);
     if (!db) return;
 
-    let session = q.getCurrentSession(db);
+    let session = await q.getCurrentSession(db);
     if (!session) {
       const id = generateSessionId();
       const now = new Date().toISOString();
-      q.createSession(db, id, now);
-      session = q.getCurrentSession(db);
+      await q.createSession(db, id, now);
+      session = await q.getCurrentSession(db);
     }
-    res.json(q.buildSessionResponse(db, session));
+    res.json(await q.buildSessionResponse(db, session));
   });
 
   // POST /api/session/new
-  router.post('/session/new', (req, res) => {
+  router.post('/session/new', async (req, res) => {
     const db = requireDb(res);
     if (!db) return;
 
-    const current = q.getCurrentSession(db);
+    const current = await q.getCurrentSession(db);
     if (current) {
-      q.endSession(db, current.id, new Date().toISOString());
+      await q.endSession(db, current.id, new Date().toISOString());
     }
 
     const newId = generateSessionId();
-    q.createSession(db, newId, new Date().toISOString());
+    await q.createSession(db, newId, new Date().toISOString());
 
     if (current) {
-      q.carryOverTasks(db, current.id, newId);
+      await q.carryOverTasks(db, current.id, newId);
     }
 
-    const newSession = q.getCurrentSession(db);
-    res.json(q.buildSessionResponse(db, newSession));
+    const newSession = await q.getCurrentSession(db);
+    res.json(await q.buildSessionResponse(db, newSession));
   });
 
   // --- Task Routes ---
 
   // POST /api/task
-  router.post('/task', (req, res) => {
+  router.post('/task', async (req, res) => {
     const db = requireDb(res);
     if (!db) return;
 
@@ -129,61 +138,61 @@ function createRoutes(getDb) {
       return res.status(400).json({ error: 'Task content is required' });
     }
 
-    const session = q.getCurrentSession(db);
+    const session = await q.getCurrentSession(db);
     if (!session) {
       return res.status(400).json({ error: 'No active session' });
     }
 
     const id = generateId('task');
-    const sortOrder = q.getNextSortOrder(db, session.id);
-    q.createTask(db, id, session.id, content.trim(), 'todo', new Date().toISOString(), sortOrder);
+    const sortOrder = await q.getNextSortOrder(db, session.id);
+    await q.createTask(db, id, session.id, content.trim(), 'todo', new Date().toISOString(), sortOrder);
 
-    res.json(q.getTask(db, id));
+    res.json(await q.getTask(db, id));
   });
 
   // PUT /api/task/:id
-  router.put('/task/:id', (req, res) => {
+  router.put('/task/:id', async (req, res) => {
     const db = requireDb(res);
     if (!db) return;
 
-    const task = q.getTask(db, req.params.id);
+    const task = await q.getTask(db, req.params.id);
     if (!task) {
       return res.status(404).json({ error: 'Task not found' });
     }
 
     if (req.body.status) {
-      q.updateTaskStatus(db, req.params.id, req.body.status);
+      await q.updateTaskStatus(db, req.params.id, req.body.status);
     }
     if (req.body.content !== undefined) {
       const trimmed = req.body.content.trim();
       if (!trimmed) {
         return res.status(400).json({ error: 'Task content cannot be empty' });
       }
-      q.updateTaskContent(db, req.params.id, trimmed);
+      await q.updateTaskContent(db, req.params.id, trimmed);
     }
     if (req.body.tagIds) {
-      q.setTaskTagIds(db, req.params.id, req.body.tagIds);
+      await q.setTaskTagIds(db, req.params.id, req.body.tagIds);
     }
 
-    res.json(q.getTask(db, req.params.id));
+    res.json(await q.getTask(db, req.params.id));
   });
 
   // DELETE /api/task/:id/tags/:tagId
-  router.delete('/task/:id/tags/:tagId', (req, res) => {
+  router.delete('/task/:id/tags/:tagId', async (req, res) => {
     const db = requireDb(res);
     if (!db) return;
 
-    const task = q.getTask(db, req.params.id);
+    const task = await q.getTask(db, req.params.id);
     if (!task) {
       return res.status(404).json({ error: 'Task not found' });
     }
 
-    q.removeTaskTag(db, req.params.id, req.params.tagId);
-    res.json(q.getTask(db, req.params.id));
+    await q.removeTaskTag(db, req.params.id, req.params.tagId);
+    res.json(await q.getTask(db, req.params.id));
   });
 
   // PUT /api/tasks/order
-  router.put('/tasks/order', (req, res) => {
+  router.put('/tasks/order', async (req, res) => {
     const db = requireDb(res);
     if (!db) return;
 
@@ -192,28 +201,28 @@ function createRoutes(getDb) {
       return res.status(400).json({ error: 'taskIds must be an array' });
     }
 
-    const session = q.getCurrentSession(db);
+    const session = await q.getCurrentSession(db);
     if (!session) {
       return res.status(400).json({ error: 'No active session' });
     }
 
-    q.reorderTasks(db, session.id, taskIds);
+    await q.reorderTasks(db, session.id, taskIds);
     res.json({ success: true });
   });
 
   // --- Tag Routes ---
 
   // GET /api/tags
-  router.get('/tags', (req, res) => {
+  router.get('/tags', async (req, res) => {
     const db = requireDb(res);
     if (!db) return;
 
-    const tags = q.getAllTags(db);
+    const tags = await q.getAllTags(db);
     res.json({ tags });
   });
 
   // POST /api/tags
-  router.post('/tags', (req, res) => {
+  router.post('/tags', async (req, res) => {
     const db = requireDb(res);
     if (!db) return;
 
@@ -222,9 +231,9 @@ function createRoutes(getDb) {
       return res.status(400).json({ error: 'Tag name is required' });
     }
 
-    const maxNum = q.getMaxTagNum(db);
+    const maxNum = await q.getMaxTagNum(db);
     const id = `tag_${String(maxNum + 1).padStart(3, '0')}`;
-    const tag = q.createTag(db, id, name.trim());
+    const tag = await q.createTag(db, id, name.trim());
     res.json(tag);
   });
 

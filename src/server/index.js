@@ -9,22 +9,11 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 let storageFolder = null;
-const isCloudMode = !!process.env.STORAGE_FOLDER;
+const isTursoMode = !!process.env.TURSO_DATABASE_URL;
+const isCloudMode = isTursoMode || !!process.env.STORAGE_FOLDER;
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '../client')));
-
-// Auto-configure storage folder in cloud mode
-if (isCloudMode) {
-  const folder = process.env.STORAGE_FOLDER;
-  if (!fs.existsSync(folder)) {
-    fs.mkdirSync(folder, { recursive: true });
-  }
-  storageFolder = folder;
-  app.locals.storageFolder = folder;
-  initDb(folder);
-  console.log(`Cloud mode: storage folder set to ${folder}`);
-}
 
 // Auth endpoints (before middleware)
 app.post('/api/auth/login', loginHandler);
@@ -35,11 +24,14 @@ app.use(authMiddleware);
 
 // Get current folder config + mode info
 app.get('/api/config/folder', (req, res) => {
-  res.json({ folder: storageFolder, mode: isCloudMode ? 'cloud' : 'local' });
+  res.json({
+    folder: storageFolder,
+    mode: isTursoMode ? 'cloud' : isCloudMode ? 'cloud' : 'local'
+  });
 });
 
 // Set storage folder path (local mode only)
-app.post('/api/config/folder', (req, res) => {
+app.post('/api/config/folder', async (req, res) => {
   if (isCloudMode) {
     return res.status(400).json({ error: 'Folder is auto-configured in cloud mode' });
   }
@@ -57,15 +49,38 @@ app.post('/api/config/folder', (req, res) => {
   }
   storageFolder = folder;
   app.locals.storageFolder = folder;
-  initDb(folder);
+  await initDb(folder);
   res.json({ ok: true, folder: storageFolder });
 });
 
 // API routes
 app.use('/api', createRoutes(getDb));
 
-app.listen(PORT, () => {
-  console.log(`Kanban Memo App running at http://localhost:${PORT}`);
+// Start server
+async function start() {
+  // Auto-configure in cloud/Turso mode
+  if (isTursoMode) {
+    await initDb();
+    console.log('Turso cloud mode: connected to remote database');
+  } else if (process.env.STORAGE_FOLDER) {
+    const folder = process.env.STORAGE_FOLDER;
+    if (!fs.existsSync(folder)) {
+      fs.mkdirSync(folder, { recursive: true });
+    }
+    storageFolder = folder;
+    app.locals.storageFolder = folder;
+    await initDb(folder);
+    console.log(`Cloud mode: storage folder set to ${folder}`);
+  }
+
+  app.listen(PORT, () => {
+    console.log(`Kanban Memo App running at http://localhost:${PORT}`);
+  });
+}
+
+start().catch(err => {
+  console.error('Failed to start:', err);
+  process.exit(1);
 });
 
 // Clean shutdown
