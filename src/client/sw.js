@@ -1,4 +1,4 @@
-const CACHE_NAME = 'kanban-memo-v1';
+const CACHE_NAME = 'kanban-memo-v2';
 const STATIC_ASSETS = [
   '/',
   '/css/style.css',
@@ -25,26 +25,25 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Fetch: network-first for API, cache-first for static assets
+// Fetch: network-first for all requests (fall back to cache when offline)
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
-  // API requests: always go to network
+  // API requests: always go to network, no cache
   if (url.pathname.startsWith('/api/')) {
     return;
   }
 
-  // Static assets: cache-first
+  // Static assets: network-first, fall back to cache
   event.respondWith(
-    caches.match(event.request).then((cached) => {
-      return cached || fetch(event.request).then((response) => {
-        // Cache successful GET responses
+    fetch(event.request)
+      .then((response) => {
         if (response.ok && event.request.method === 'GET') {
           const clone = response.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
         }
         return response;
-      });
-    })
+      })
+      .catch(() => caches.match(event.request))
   );
 });
