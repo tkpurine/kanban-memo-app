@@ -1,46 +1,20 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
+const q = require('./queries');
 
-function createRoutes(getStorageFolder) {
+function createRoutes(getDb) {
   const router = express.Router();
 
   // --- Helpers ---
 
-  function requireFolder(res) {
-    const folder = getStorageFolder();
-    if (!folder) {
+  function requireDb(res) {
+    const db = getDb();
+    if (!db) {
       res.status(400).json({ error: 'Storage folder not configured' });
       return null;
     }
-    return folder;
-  }
-
-  function getSessionFiles(folder) {
-    return fs.readdirSync(folder)
-      .filter(f => /^session_\d{8}_\d{6}\.json$/.test(f))
-      .sort()
-      .reverse();
-  }
-
-  function readSession(folder, filename) {
-    return JSON.parse(fs.readFileSync(path.join(folder, filename), 'utf-8'));
-  }
-
-  function writeSession(folder, filename, data) {
-    fs.writeFileSync(path.join(folder, filename), JSON.stringify(data, null, 2));
-  }
-
-  function readTags(folder) {
-    const filepath = path.join(folder, 'tags.json');
-    if (!fs.existsSync(filepath)) {
-      return { tags: [] };
-    }
-    return JSON.parse(fs.readFileSync(filepath, 'utf-8'));
-  }
-
-  function writeTags(folder, data) {
-    fs.writeFileSync(path.join(folder, 'tags.json'), JSON.stringify(data, null, 2));
+    return db;
   }
 
   function generateId(prefix) {
@@ -49,167 +23,181 @@ function createRoutes(getStorageFolder) {
     return `${prefix}_${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}${pad(now.getMilliseconds(), 3)}`;
   }
 
-  function createNewSession(folder, tasks = []) {
+  function generateSessionId() {
     const now = new Date();
     const pad = (n) => String(n).padStart(2, '0');
-    const filename = `session_${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}.json`;
-    const session = {
-      id: filename.replace('.json', ''),
-      startedAt: now.toISOString(),
-      endedAt: null,
-      tasks
-    };
-    writeSession(folder, filename, session);
-    return { filename, session };
+    return `session_${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
   }
+
+  // --- Migration ---
+
+  router.post('/migrate', (req, res) => {
+    const db = requireDb(res);
+    if (!db) return;
+
+    // Gather JSON data from old files
+    const folder = req.app.locals.storageFolder;
+    const jsonData = { sessions: [], tags: [] };
+
+    // Read kanban-data.json if exists
+    const dataFile = path.join(folder, 'kanban-data.json');
+    if (fs.existsSync(dataFile)) {
+      const data = JSON.parse(fs.readFileSync(dataFile, 'utf-8'));
+      if (data.sessions) jsonData.sessions.push(...data.sessions);
+      if (data.tags) jsonData.tags.push(...data.tags);
+    }
+
+    // Read old session_*.json files
+    const sessionFiles = fs.readdirSync(folder)
+      .filter(f => /^session_\d{8}_\d{6}\.json$/.test(f))
+      .sort();
+
+    sessionFiles.forEach(f => {
+      const session = JSON.parse(fs.readFileSync(path.join(folder, f), 'utf-8'));
+      if (!jsonData.sessions.find(s => s.id === session.id)) {
+        jsonData.sessions.push(session);
+      }
+    });
+
+    // Read old tags.json
+    const tagsFile = path.join(folder, 'tags.json');
+    if (fs.existsSync(tagsFile)) {
+      const oldTags = JSON.parse(fs.readFileSync(tagsFile, 'utf-8'));
+      if (oldTags.tags) {
+        oldTags.tags.forEach(tag => {
+          if (!jsonData.tags.find(t => t.id === tag.id)) {
+            jsonData.tags.push(tag);
+          }
+        });
+      }
+    }
+
+    const importedSessions = q.importJsonData(db, jsonData);
+    const totalSessions = db.prepare('SELECT COUNT(*) AS cnt FROM sessions').get().cnt;
+    const totalTags = db.prepare('SELECT COUNT(*) AS cnt FROM tags').get().cnt;
+
+    res.json({ success: true, importedSessions, totalSessions, totalTags });
+  });
 
   // --- Session Routes ---
 
   // GET /api/session/current
   router.get('/session/current', (req, res) => {
-    const folder = requireFolder(res);
-    if (!folder) return;
+    const db = requireDb(res);
+    if (!db) return;
 
-    const files = getSessionFiles(folder);
-    if (files.length === 0) {
-      const { session } = createNewSession(folder);
-      return res.json(session);
+    let session = q.getCurrentSession(db);
+    if (!session) {
+      const id = generateSessionId();
+      const now = new Date().toISOString();
+      q.createSession(db, id, now);
+      session = q.getCurrentSession(db);
     }
-    const session = readSession(folder, files[0]);
-    res.json(session);
+    res.json(q.buildSessionResponse(db, session));
   });
 
   // POST /api/session/new
   router.post('/session/new', (req, res) => {
-    const folder = requireFolder(res);
-    if (!folder) return;
+    const db = requireDb(res);
+    if (!db) return;
 
-    const files = getSessionFiles(folder);
-
-    // End current session if one exists
-    let carryOverTasks = [];
-    if (files.length > 0) {
-      const current = readSession(folder, files[0]);
-      current.endedAt = new Date().toISOString();
-      writeSession(folder, files[0], current);
-      carryOverTasks = current.tasks.filter(t => t.status !== 'done');
+    const current = q.getCurrentSession(db);
+    if (current) {
+      q.endSession(db, current.id, new Date().toISOString());
     }
 
-    const { session } = createNewSession(folder, carryOverTasks);
-    res.json(session);
+    const newId = generateSessionId();
+    q.createSession(db, newId, new Date().toISOString());
+
+    if (current) {
+      q.carryOverTasks(db, current.id, newId);
+    }
+
+    const newSession = q.getCurrentSession(db);
+    res.json(q.buildSessionResponse(db, newSession));
   });
 
   // --- Task Routes ---
 
   // POST /api/task
   router.post('/task', (req, res) => {
-    const folder = requireFolder(res);
-    if (!folder) return;
+    const db = requireDb(res);
+    if (!db) return;
 
     const { content } = req.body;
     if (!content || !content.trim()) {
       return res.status(400).json({ error: 'Task content is required' });
     }
 
-    const files = getSessionFiles(folder);
-    if (files.length === 0) {
+    const session = q.getCurrentSession(db);
+    if (!session) {
       return res.status(400).json({ error: 'No active session' });
     }
 
-    const session = readSession(folder, files[0]);
-    const task = {
-      id: generateId('task'),
-      content: content.trim(),
-      status: 'todo',
-      tagIds: [],
-      createdAt: new Date().toISOString()
-    };
-    session.tasks.push(task);
-    writeSession(folder, files[0], session);
-    res.json(task);
+    const id = generateId('task');
+    const sortOrder = q.getNextSortOrder(db, session.id);
+    q.createTask(db, id, session.id, content.trim(), 'todo', new Date().toISOString(), sortOrder);
+
+    res.json(q.getTask(db, id));
   });
 
   // PUT /api/task/:id
   router.put('/task/:id', (req, res) => {
-    const folder = requireFolder(res);
-    if (!folder) return;
+    const db = requireDb(res);
+    if (!db) return;
 
-    const files = getSessionFiles(folder);
-    if (files.length === 0) {
-      return res.status(400).json({ error: 'No active session' });
-    }
-
-    const session = readSession(folder, files[0]);
-    const task = session.tasks.find(t => t.id === req.params.id);
+    const task = q.getTask(db, req.params.id);
     if (!task) {
       return res.status(404).json({ error: 'Task not found' });
     }
 
     if (req.body.status) {
-      task.status = req.body.status;
+      q.updateTaskStatus(db, req.params.id, req.body.status);
     }
     if (req.body.content !== undefined) {
       const trimmed = req.body.content.trim();
       if (!trimmed) {
         return res.status(400).json({ error: 'Task content cannot be empty' });
       }
-      task.content = trimmed;
+      q.updateTaskContent(db, req.params.id, trimmed);
     }
     if (req.body.tagIds) {
-      task.tagIds = req.body.tagIds;
+      q.setTaskTagIds(db, req.params.id, req.body.tagIds);
     }
 
-    writeSession(folder, files[0], session);
-    res.json(task);
+    res.json(q.getTask(db, req.params.id));
   });
 
   // DELETE /api/task/:id/tags/:tagId
   router.delete('/task/:id/tags/:tagId', (req, res) => {
-    const folder = requireFolder(res);
-    if (!folder) return;
+    const db = requireDb(res);
+    if (!db) return;
 
-    const files = getSessionFiles(folder);
-    if (files.length === 0) {
-      return res.status(400).json({ error: 'No active session' });
-    }
-
-    const session = readSession(folder, files[0]);
-    const task = session.tasks.find(t => t.id === req.params.id);
+    const task = q.getTask(db, req.params.id);
     if (!task) {
       return res.status(404).json({ error: 'Task not found' });
     }
 
-    task.tagIds = task.tagIds.filter(id => id !== req.params.tagId);
-    writeSession(folder, files[0], session);
-    res.json(task);
+    q.removeTaskTag(db, req.params.id, req.params.tagId);
+    res.json(q.getTask(db, req.params.id));
   });
 
   // PUT /api/tasks/order
   router.put('/tasks/order', (req, res) => {
-    const folder = requireFolder(res);
-    if (!folder) return;
+    const db = requireDb(res);
+    if (!db) return;
 
     const { taskIds } = req.body;
     if (!Array.isArray(taskIds)) {
       return res.status(400).json({ error: 'taskIds must be an array' });
     }
 
-    const files = getSessionFiles(folder);
-    if (files.length === 0) {
+    const session = q.getCurrentSession(db);
+    if (!session) {
       return res.status(400).json({ error: 'No active session' });
     }
 
-    const session = readSession(folder, files[0]);
-    const reordered = [];
-    taskIds.forEach(id => {
-      const task = session.tasks.find(t => t.id === id);
-      if (task) reordered.push(task);
-    });
-    session.tasks.forEach(t => {
-      if (!taskIds.includes(t.id)) reordered.push(t);
-    });
-    session.tasks = reordered;
-    writeSession(folder, files[0], session);
+    q.reorderTasks(db, session.id, taskIds);
     res.json({ success: true });
   });
 
@@ -217,36 +205,27 @@ function createRoutes(getStorageFolder) {
 
   // GET /api/tags
   router.get('/tags', (req, res) => {
-    const folder = requireFolder(res);
-    if (!folder) return;
+    const db = requireDb(res);
+    if (!db) return;
 
-    const data = readTags(folder);
-    res.json(data);
+    const tags = q.getAllTags(db);
+    res.json({ tags });
   });
 
   // POST /api/tags
   router.post('/tags', (req, res) => {
-    const folder = requireFolder(res);
-    if (!folder) return;
+    const db = requireDb(res);
+    if (!db) return;
 
     const { name } = req.body;
     if (!name || !name.trim()) {
       return res.status(400).json({ error: 'Tag name is required' });
     }
 
-    const data = readTags(folder);
-    const maxNum = data.tags.reduce((max, tag) => {
-      const match = tag.id.match(/^tag_(\d+)$/);
-      return match ? Math.max(max, parseInt(match[1], 10)) : max;
-    }, 0);
-
-    const newTag = {
-      id: `tag_${String(maxNum + 1).padStart(3, '0')}`,
-      name: name.trim()
-    };
-    data.tags.push(newTag);
-    writeTags(folder, data);
-    res.json(newTag);
+    const maxNum = q.getMaxTagNum(db);
+    const id = `tag_${String(maxNum + 1).padStart(3, '0')}`;
+    const tag = q.createTag(db, id, name.trim());
+    res.json(tag);
   });
 
   return router;

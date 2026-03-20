@@ -7,9 +7,14 @@
     "start": "node src/server/index.js",
     "dev": "node --watch src/server/index.js"
   },
-  "keywords": ["kanban", "task-management", "memo"],
+  "keywords": [
+    "kanban",
+    "task-management",
+    "memo"
+  ],
   "license": "MIT",
   "dependencies": {
+    "better-sqlite3": "^12.8.0",
     "express": "^4.21.0"
   }
 }

@@ -1,6 +1,7 @@
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
+const { initDb, getDb, closeDb } = require('./db');
 const createRoutes = require('./routes');
 
 const app = express();
@@ -31,12 +32,25 @@ app.post('/api/config/folder', (req, res) => {
     return res.status(400).json({ error: 'Directory does not exist' });
   }
   storageFolder = folder;
+  app.locals.storageFolder = folder;
+  initDb(folder);
   res.json({ ok: true, folder: storageFolder });
 });
 
-// API routes — pass getter so routes always read current storageFolder
-app.use('/api', createRoutes(() => storageFolder));
+// API routes
+app.use('/api', createRoutes(getDb));
 
 app.listen(PORT, () => {
   console.log(`Kanban Memo App running at http://localhost:${PORT}`);
+});
+
+// Clean shutdown
+process.on('SIGINT', () => {
+  closeDb();
+  process.exit(0);
+});
+
+process.on('SIGTERM', () => {
+  closeDb();
+  process.exit(0);
 });
