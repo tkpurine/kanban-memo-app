@@ -3,3 +3,7 @@ dist/
 .env
 *.log
 .DS_Store
+
+# Session data files (generated at runtime)
+session_*.json
+tags.json

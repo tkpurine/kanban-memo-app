@@ -151,6 +151,54 @@ function createTaskCard(task) {
   content.textContent = task.content;
   card.appendChild(content);
 
+  // Double-click to edit
+  content.addEventListener('dblclick', (e) => {
+    e.stopPropagation();
+    if (content.contentEditable === 'true') return;
+
+    content.contentEditable = 'true';
+    content.classList.add('editing');
+    content.focus();
+
+    // Select all text
+    const range = document.createRange();
+    range.selectNodeContents(content);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+
+    async function save() {
+      content.contentEditable = 'false';
+      content.classList.remove('editing');
+      const newText = content.textContent.trim();
+      if (!newText || newText === task.content) {
+        content.textContent = task.content;
+        return;
+      }
+      try {
+        const updated = await api('PUT', `/api/task/${task.id}`, { content: newText });
+        const idx = state.session.tasks.findIndex(t => t.id === task.id);
+        if (idx !== -1) state.session.tasks[idx] = updated;
+        content.textContent = updated.content;
+      } catch (err) {
+        content.textContent = task.content;
+        alert(err.message);
+      }
+    }
+
+    content.addEventListener('blur', save, { once: true });
+    content.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') {
+        ev.preventDefault();
+        content.blur();
+      }
+      if (ev.key === 'Escape') {
+        content.textContent = task.content;
+        content.blur();
+      }
+    });
+  });
+
   const tagsContainer = document.createElement('div');
   tagsContainer.className = 'task-tags';
 

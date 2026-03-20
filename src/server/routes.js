@@ -148,6 +148,13 @@ function createRoutes(getStorageFolder) {
     if (req.body.status) {
       task.status = req.body.status;
     }
+    if (req.body.content !== undefined) {
+      const trimmed = req.body.content.trim();
+      if (!trimmed) {
+        return res.status(400).json({ error: 'Task content cannot be empty' });
+      }
+      task.content = trimmed;
+    }
     if (req.body.tagIds) {
       task.tagIds = req.body.tagIds;
     }
