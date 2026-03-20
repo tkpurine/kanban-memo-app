@@ -483,6 +483,35 @@ async function deleteTask() {
   }
 }
 
+// --- Move Task (reorder by button) ---
+async function moveTask(taskId, direction) {
+  const visibleTasks = state.session.tasks.filter(t => t.status !== 'done');
+  const idx = visibleTasks.findIndex(t => t.id === taskId);
+  if (idx < 0) return;
+  const newIdx = idx + direction;
+  if (newIdx < 0 || newIdx >= visibleTasks.length) return;
+
+  // Swap in visible list
+  [visibleTasks[idx], visibleTasks[newIdx]] = [visibleTasks[newIdx], visibleTasks[idx]];
+
+  // Rebuild full task list (visible reordered + done tasks)
+  const doneTasks = state.session.tasks.filter(t => t.status === 'done');
+  const allTaskIds = [...visibleTasks.map(t => t.id), ...doneTasks.map(t => t.id)];
+
+  try {
+    await api('PUT', '/api/tasks/order', { taskIds: allTaskIds });
+    const reordered = [];
+    allTaskIds.forEach(id => {
+      const task = state.session.tasks.find(t => t.id === id);
+      if (task) reordered.push(task);
+    });
+    state.session.tasks = reordered;
+    renderListView();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
 // --- Render: List View ---
 function renderListView() {
   const container = document.getElementById('list-task-list');
@@ -742,9 +771,11 @@ function initTagSortable() {
     });
   });
 
-  // Make each list task row accept tag drops
+  // Make each list task's tag area accept tag drops (not the row itself, to avoid blocking drag reorder)
   document.querySelectorAll('.list-task-row').forEach(row => {
-    new Sortable(row, {
+    const tagsArea = row.querySelector('.list-task-tags');
+    if (!tagsArea) return;
+    new Sortable(tagsArea, {
       group: {
         name: 'tags',
         pull: false,
