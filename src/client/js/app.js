@@ -519,7 +519,7 @@ function renderListView() {
       clickTimer = setTimeout(() => {
         clickTimer = null;
         openTaskModal(task.id);
-      }, isTouchDevice ? 0 : 250);
+      }, isTouchDevice ? 200 : 250);
     });
 
     if (!isTouchDevice) {
@@ -652,8 +652,6 @@ function initListSortable() {
     handle: '.list-drag-handle',
     ghostClass: 'sortable-ghost',
     chosenClass: 'sortable-chosen',
-    delay: isTouchDevice ? 150 : 0,
-    delayOnTouchOnly: true,
     onEnd: async () => {
       const visibleTaskIds = [...container.querySelectorAll('.list-task-row')].map(el => el.dataset.taskId);
       const doneTaskIds = state.session.tasks.filter(t => t.status === 'done').map(t => t.id);

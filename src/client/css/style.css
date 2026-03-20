@@ -657,9 +657,19 @@ body {
     gap: 8px;
   }
 
+  .list-drag-handle {
+    font-size: 22px;
+    padding: 8px 4px;
+    min-width: 32px;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
   .list-task-content {
     font-size: 14px;
-    width: calc(100% - 40px);
+    width: calc(100% - 50px);
   }
 
   .list-task-tags {
