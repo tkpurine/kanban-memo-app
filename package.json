@@ -1,0 +1,15 @@
+{
+  "name": "kanban-memo-app",
+  "version": "0.1.0",
+  "description": "A kanban-style task management app with session-based JSON persistence",
+  "main": "src/server/index.js",
+  "scripts": {
+    "start": "node src/server/index.js",
+    "dev": "node --watch src/server/index.js"
+  },
+  "keywords": ["kanban", "task-management", "memo"],
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.21.0"
+  }
+}
