@@ -1,0 +1,295 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: #f0f2f5;
+  color: #333;
+}
+
+.hidden {
+  display: none !important;
+}
+
+/* --- Modal --- */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.modal-content {
+  background: #fff;
+  border-radius: 8px;
+  padding: 32px;
+  width: 420px;
+  max-width: 90%;
+}
+
+.modal-content h2 {
+  margin-bottom: 8px;
+}
+
+.modal-content p {
+  color: #666;
+  margin-bottom: 16px;
+  font-size: 14px;
+}
+
+.modal-content input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 14px;
+  margin-bottom: 12px;
+}
+
+.modal-content button {
+  width: 100%;
+  padding: 10px;
+  background: #4a90d9;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.modal-content button:hover {
+  background: #357abd;
+}
+
+.error {
+  color: #d9534f;
+  font-size: 13px;
+  margin-top: 8px;
+}
+
+/* --- Top Bar --- */
+#top-bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 20px;
+  background: #fff;
+  border-bottom: 1px solid #ddd;
+}
+
+#new-session-btn {
+  padding: 8px 16px;
+  background: #4a90d9;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+#new-session-btn:hover {
+  background: #357abd;
+}
+
+#session-time {
+  font-size: 14px;
+  color: #666;
+}
+
+/* --- Task Input --- */
+#task-input-area {
+  display: flex;
+  gap: 8px;
+  padding: 12px 20px;
+  background: #fff;
+  border-bottom: 1px solid #ddd;
+}
+
+#task-input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+#add-task-btn {
+  padding: 8px 20px;
+  background: #5cb85c;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+#add-task-btn:hover {
+  background: #4cae4c;
+}
+
+/* --- Main Content --- */
+#main-content {
+  display: grid;
+  grid-template-columns: 1fr 200px;
+  gap: 0;
+  height: calc(100vh - 110px);
+}
+
+/* --- Board --- */
+#board {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.column {
+  background: #e8eaed;
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+}
+
+.column h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #555;
+  margin-bottom: 10px;
+  text-align: center;
+}
+
+.task-list {
+  flex: 1;
+  min-height: 60px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* --- Task Card --- */
+.task-card {
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 10px;
+  cursor: grab;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.task-card:active {
+  cursor: grabbing;
+}
+
+.task-card .task-content {
+  margin-bottom: 6px;
+}
+
+.task-card .task-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.tag-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  background: #e3f2fd;
+  color: #1565c0;
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 10px;
+}
+
+.tag-badge .tag-remove {
+  cursor: pointer;
+  font-weight: bold;
+  margin-left: 2px;
+  opacity: 0.6;
+}
+
+.tag-badge .tag-remove:hover {
+  opacity: 1;
+}
+
+/* SortableJS ghost/drag styles */
+.sortable-ghost {
+  opacity: 0.4;
+}
+
+.sortable-chosen {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* --- Tag Sidebar --- */
+#tag-sidebar {
+  background: #fff;
+  border-left: 1px solid #ddd;
+  padding: 16px;
+  overflow-y: auto;
+}
+
+#tag-sidebar h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #555;
+  margin-bottom: 12px;
+}
+
+#tag-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.tag-item {
+  display: inline-block;
+  background: #e3f2fd;
+  color: #1565c0;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  cursor: grab;
+}
+
+.tag-item:active {
+  cursor: grabbing;
+}
+
+#tag-input-area {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+#tag-input {
+  padding: 6px 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+#add-tag-btn {
+  padding: 6px;
+  background: #4a90d9;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+#add-tag-btn:hover {
+  background: #357abd;
+}

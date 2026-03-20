@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kanban Memo</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <!-- Folder config modal -->
+  <div id="folder-modal" class="modal-overlay">
+    <div class="modal-content">
+      <h2>Set Storage Folder</h2>
+      <p>Enter the path to a local folder where session data will be saved.</p>
+      <input type="text" id="folder-input" placeholder="/path/to/storage">
+      <button id="folder-submit">OK</button>
+      <p id="folder-error" class="error"></p>
+    </div>
+  </div>
+
+  <!-- Main app -->
+  <div id="app" class="hidden">
+    <!-- Top bar -->
+    <header id="top-bar">
+      <button id="new-session-btn">+ New Session</button>
+      <span id="session-time"></span>
+    </header>
+
+    <!-- Task input -->
+    <div id="task-input-area">
+      <input type="text" id="task-input" placeholder="Enter new task...">
+      <button id="add-task-btn">Add</button>
+    </div>
+
+    <!-- Board + Sidebar -->
+    <div id="main-content">
+      <div id="board">
+        <div class="column" data-status="todo">
+          <h3>Todo</h3>
+          <div class="task-list"></div>
+        </div>
+        <div class="column" data-status="in_progress">
+          <h3>In Progress</h3>
+          <div class="task-list"></div>
+        </div>
+        <div class="column" data-status="waiting">
+          <h3>Waiting</h3>
+          <div class="task-list"></div>
+        </div>
+        <div class="column" data-status="done">
+          <h3>Done</h3>
+          <div class="task-list"></div>
+        </div>
+      </div>
+
+      <aside id="tag-sidebar">
+        <h3>Tags</h3>
+        <div id="tag-list"></div>
+        <div id="tag-input-area">
+          <input type="text" id="tag-input" placeholder="New tag...">
+          <button id="add-tag-btn">+ Add</button>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
