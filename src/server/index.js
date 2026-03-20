@@ -25,7 +25,7 @@ app.use(authMiddleware);
 // Get current folder config + mode info
 app.get('/api/config/folder', (req, res) => {
   res.json({
-    folder: storageFolder,
+    folder: isTursoMode ? 'turso-cloud' : storageFolder,
     mode: isTursoMode ? 'cloud' : isCloudMode ? 'cloud' : 'local'
   });
 });
