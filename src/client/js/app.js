@@ -9,11 +9,18 @@ if ('serviceWorker' in navigator) {
 const state = {
   session: null,
   tags: [],
-  viewMode: 'kanban'
+  viewMode: 'kanban',
+  mobileActiveColumn: 'todo'
 };
 
 // --- Auth Token ---
 let authToken = localStorage.getItem('kanban_auth_token') || '';
+
+// --- Task Modal State ---
+let modalTaskId = null;
+
+// --- Touch detection ---
+const isTouchDevice = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
 
 // --- API Helper ---
 async function api(method, path, body) {
@@ -28,7 +35,6 @@ async function api(method, path, body) {
   const res = await fetch(path, opts);
   const data = await res.json();
   if (res.status === 401) {
-    // Token expired or invalid — show login
     localStorage.removeItem('kanban_auth_token');
     authToken = '';
     location.reload();
@@ -156,6 +162,7 @@ async function loadApp() {
   renderTags();
   initSortable();
   initEventHandlers();
+  updateMobileColumns();
 }
 
 // --- View Mode ---
@@ -165,21 +172,46 @@ function switchViewMode(mode) {
   const listView = document.getElementById('list-view');
   const kanbanBtn = document.getElementById('kanban-view-btn');
   const listBtn = document.getElementById('list-view-btn');
+  const columnTabs = document.getElementById('column-tabs');
 
   if (mode === 'kanban') {
     board.classList.remove('hidden');
     listView.classList.add('hidden');
     kanbanBtn.classList.add('active');
     listBtn.classList.remove('active');
+    columnTabs.style.display = '';
     renderBoard();
     initTagSortable();
+    updateMobileColumns();
   } else {
     board.classList.add('hidden');
     listView.classList.remove('hidden');
     kanbanBtn.classList.remove('active');
     listBtn.classList.add('active');
+    columnTabs.style.display = 'none';
     renderListView();
   }
+}
+
+// --- Mobile Column Tabs ---
+function updateMobileColumns() {
+  const columns = document.querySelectorAll('#board .column');
+  columns.forEach(col => {
+    if (col.dataset.status === state.mobileActiveColumn) {
+      col.classList.add('mobile-active');
+    } else {
+      col.classList.remove('mobile-active');
+    }
+  });
+
+  const tabs = document.querySelectorAll('.column-tab');
+  tabs.forEach(tab => {
+    if (tab.dataset.status === state.mobileActiveColumn) {
+      tab.classList.add('active');
+    } else {
+      tab.classList.remove('active');
+    }
+  });
 }
 
 // --- Render: current view ---
@@ -188,6 +220,7 @@ function renderCurrentView() {
     renderListView();
   } else {
     renderBoard();
+    updateMobileColumns();
   }
 }
 
@@ -230,53 +263,28 @@ function createTaskCard(task) {
   content.textContent = task.content;
   card.appendChild(content);
 
-  // Double-click to edit
-  content.addEventListener('dblclick', (e) => {
-    e.stopPropagation();
+  // Click/tap to open modal, double-click for inline edit
+  let clickTimer = null;
+
+  card.addEventListener('click', (e) => {
+    // Don't open modal if clicking tag remove button or during editing
+    if (e.target.classList.contains('tag-remove')) return;
     if (content.contentEditable === 'true') return;
-
-    content.contentEditable = 'true';
-    content.classList.add('editing');
-    content.focus();
-
-    // Select all text
-    const range = document.createRange();
-    range.selectNodeContents(content);
-    const sel = window.getSelection();
-    sel.removeAllRanges();
-    sel.addRange(range);
-
-    async function save() {
-      content.contentEditable = 'false';
-      content.classList.remove('editing');
-      const newText = content.textContent.trim();
-      if (!newText || newText === task.content) {
-        content.textContent = task.content;
-        return;
-      }
-      try {
-        const updated = await api('PUT', `/api/task/${task.id}`, { content: newText });
-        const idx = state.session.tasks.findIndex(t => t.id === task.id);
-        if (idx !== -1) state.session.tasks[idx] = updated;
-        content.textContent = updated.content;
-      } catch (err) {
-        content.textContent = task.content;
-        alert(err.message);
-      }
-    }
-
-    content.addEventListener('blur', save, { once: true });
-    content.addEventListener('keydown', (ev) => {
-      if (ev.key === 'Enter') {
-        ev.preventDefault();
-        content.blur();
-      }
-      if (ev.key === 'Escape') {
-        content.textContent = task.content;
-        content.blur();
-      }
-    });
+    if (clickTimer) return;
+    clickTimer = setTimeout(() => {
+      clickTimer = null;
+      openTaskModal(task.id);
+    }, isTouchDevice ? 0 : 250);
   });
+
+  // Double-click to inline edit (desktop only)
+  if (!isTouchDevice) {
+    content.addEventListener('dblclick', (e) => {
+      e.stopPropagation();
+      if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; }
+      startInlineEdit(content, task);
+    });
+  }
 
   const tagsContainer = document.createElement('div');
   tagsContainer.className = 'task-tags';
@@ -312,6 +320,169 @@ function createTaskCard(task) {
   return card;
 }
 
+// --- Inline Edit (shared logic) ---
+function startInlineEdit(contentEl, task) {
+  if (contentEl.contentEditable === 'true') return;
+
+  contentEl.contentEditable = 'true';
+  contentEl.classList.add('editing');
+  contentEl.focus();
+
+  const range = document.createRange();
+  range.selectNodeContents(contentEl);
+  const sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+
+  async function save() {
+    contentEl.contentEditable = 'false';
+    contentEl.classList.remove('editing');
+    const newText = contentEl.textContent.trim();
+    if (!newText || newText === task.content) {
+      contentEl.textContent = task.content;
+      return;
+    }
+    try {
+      const updated = await api('PUT', `/api/task/${task.id}`, { content: newText });
+      const idx = state.session.tasks.findIndex(t => t.id === task.id);
+      if (idx !== -1) state.session.tasks[idx] = updated;
+      contentEl.textContent = updated.content;
+    } catch (err) {
+      contentEl.textContent = task.content;
+      alert(err.message);
+    }
+  }
+
+  contentEl.addEventListener('blur', save, { once: true });
+  contentEl.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter') {
+      ev.preventDefault();
+      contentEl.blur();
+    }
+    if (ev.key === 'Escape') {
+      contentEl.textContent = task.content;
+      contentEl.blur();
+    }
+  });
+}
+
+// --- Task Detail Modal ---
+function openTaskModal(taskId) {
+  const task = state.session.tasks.find(t => t.id === taskId);
+  if (!task) return;
+
+  modalTaskId = taskId;
+  const modal = document.getElementById('task-modal');
+  const contentInput = document.getElementById('task-modal-content');
+  const statusSelect = document.getElementById('task-modal-status');
+  const tagsContainer = document.getElementById('task-modal-tags');
+  const tagAddSelect = document.getElementById('task-modal-tag-add');
+
+  // Populate content
+  contentInput.value = task.content;
+
+  // Populate status
+  statusSelect.value = task.status;
+
+  // Populate current tags
+  renderModalTags(task);
+
+  // Populate add tag dropdown
+  tagAddSelect.innerHTML = '<option value="">+ Add tag...</option>';
+  state.tags
+    .filter(t => !task.tagIds.includes(t.id))
+    .forEach(tag => {
+      const opt = document.createElement('option');
+      opt.value = tag.id;
+      opt.textContent = tag.name;
+      tagAddSelect.appendChild(opt);
+    });
+
+  modal.classList.remove('hidden');
+}
+
+function renderModalTags(task) {
+  const container = document.getElementById('task-modal-tags');
+  container.innerHTML = '';
+
+  task.tagIds.forEach(tagId => {
+    const tag = state.tags.find(t => t.id === tagId);
+    if (!tag) return;
+
+    const badge = document.createElement('span');
+    badge.className = 'tag-badge';
+    badge.textContent = tag.name;
+
+    const removeBtn = document.createElement('span');
+    removeBtn.className = 'tag-remove';
+    removeBtn.textContent = '×';
+    removeBtn.addEventListener('click', () => {
+      const task = state.session.tasks.find(t => t.id === modalTaskId);
+      if (task) {
+        task.tagIds = task.tagIds.filter(id => id !== tagId);
+        renderModalTags(task);
+        // Update add tag dropdown
+        const tagAddSelect = document.getElementById('task-modal-tag-add');
+        const opt = document.createElement('option');
+        opt.value = tagId;
+        opt.textContent = tag.name;
+        tagAddSelect.appendChild(opt);
+      }
+    });
+
+    badge.appendChild(removeBtn);
+    container.appendChild(badge);
+  });
+}
+
+function closeTaskModal() {
+  document.getElementById('task-modal').classList.add('hidden');
+  modalTaskId = null;
+}
+
+async function saveTaskModal() {
+  if (!modalTaskId) return;
+
+  const contentInput = document.getElementById('task-modal-content');
+  const statusSelect = document.getElementById('task-modal-status');
+  const task = state.session.tasks.find(t => t.id === modalTaskId);
+  if (!task) return;
+
+  const newContent = contentInput.value.trim();
+  if (!newContent) {
+    alert('Task content cannot be empty');
+    return;
+  }
+
+  try {
+    const updated = await api('PUT', `/api/task/${modalTaskId}`, {
+      content: newContent,
+      status: statusSelect.value,
+      tagIds: task.tagIds
+    });
+    const idx = state.session.tasks.findIndex(t => t.id === modalTaskId);
+    if (idx !== -1) state.session.tasks[idx] = updated;
+    closeTaskModal();
+    renderCurrentView();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+async function deleteTask() {
+  if (!modalTaskId) return;
+  if (!confirm('Delete this task?')) return;
+
+  try {
+    await api('DELETE', `/api/task/${modalTaskId}`);
+    state.session.tasks = state.session.tasks.filter(t => t.id !== modalTaskId);
+    closeTaskModal();
+    renderCurrentView();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
 // --- Render: List View ---
 function renderListView() {
   const container = document.getElementById('list-task-list');
@@ -336,52 +507,28 @@ function renderListView() {
     content.textContent = task.content;
     row.appendChild(content);
 
-    // Double-click to edit in list view
-    content.addEventListener('dblclick', (e) => {
-      e.stopPropagation();
+    // Click/tap to open modal, double-click for inline edit
+    let clickTimer = null;
+
+    row.addEventListener('click', (e) => {
+      if (e.target.classList.contains('tag-remove')) return;
+      if (e.target.classList.contains('list-drag-handle')) return;
+      if (e.target.tagName === 'SELECT' || e.target.tagName === 'OPTION') return;
       if (content.contentEditable === 'true') return;
-
-      content.contentEditable = 'true';
-      content.classList.add('editing');
-      content.focus();
-
-      const range = document.createRange();
-      range.selectNodeContents(content);
-      const sel = window.getSelection();
-      sel.removeAllRanges();
-      sel.addRange(range);
-
-      async function save() {
-        content.contentEditable = 'false';
-        content.classList.remove('editing');
-        const newText = content.textContent.trim();
-        if (!newText || newText === task.content) {
-          content.textContent = task.content;
-          return;
-        }
-        try {
-          const updated = await api('PUT', `/api/task/${task.id}`, { content: newText });
-          const idx = state.session.tasks.findIndex(t => t.id === task.id);
-          if (idx !== -1) state.session.tasks[idx] = updated;
-          content.textContent = updated.content;
-        } catch (err) {
-          content.textContent = task.content;
-          alert(err.message);
-        }
-      }
-
-      content.addEventListener('blur', save, { once: true });
-      content.addEventListener('keydown', (ev) => {
-        if (ev.key === 'Enter') {
-          ev.preventDefault();
-          content.blur();
-        }
-        if (ev.key === 'Escape') {
-          content.textContent = task.content;
-          content.blur();
-        }
-      });
+      if (clickTimer) return;
+      clickTimer = setTimeout(() => {
+        clickTimer = null;
+        openTaskModal(task.id);
+      }, isTouchDevice ? 0 : 250);
     });
+
+    if (!isTouchDevice) {
+      content.addEventListener('dblclick', (e) => {
+        e.stopPropagation();
+        if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; }
+        startInlineEdit(content, task);
+      });
+    }
 
     const tagsContainer = document.createElement('div');
     tagsContainer.className = 'task-tags list-task-tags';
@@ -461,7 +608,6 @@ function renderTags() {
     list.appendChild(item);
   });
 
-  // Reinitialize tag dragging after re-render
   initTagSortable();
 }
 
@@ -470,13 +616,14 @@ let tagSortableInstance = null;
 let listSortableInstance = null;
 
 function initSortable() {
-  // Task columns — drag tasks between columns
   document.querySelectorAll('.task-list').forEach(list => {
     new Sortable(list, {
       group: 'tasks',
       animation: 150,
       ghostClass: 'sortable-ghost',
       chosenClass: 'sortable-chosen',
+      delay: isTouchDevice ? 150 : 0,
+      delayOnTouchOnly: true,
       onEnd: async (evt) => {
         const taskId = evt.item.dataset.taskId;
         const newStatus = evt.to.closest('.column').dataset.status;
@@ -505,6 +652,8 @@ function initListSortable() {
     handle: '.list-drag-handle',
     ghostClass: 'sortable-ghost',
     chosenClass: 'sortable-chosen',
+    delay: isTouchDevice ? 150 : 0,
+    delayOnTouchOnly: true,
     onEnd: async () => {
       const visibleTaskIds = [...container.querySelectorAll('.list-task-row')].map(el => el.dataset.taskId);
       const doneTaskIds = state.session.tasks.filter(t => t.status === 'done').map(t => t.id);
@@ -526,7 +675,6 @@ function initListSortable() {
 }
 
 function initTagSortable() {
-  // Destroy previous instance to avoid duplicates
   if (tagSortableInstance) {
     tagSortableInstance.destroy();
   }
@@ -541,12 +689,10 @@ function initTagSortable() {
     sort: false,
     animation: 150,
     onEnd: async (evt) => {
-      // Remove the cloned element from wherever it was dropped
       if (evt.item.parentElement && evt.item.parentElement.id !== 'tag-list') {
         evt.item.remove();
       }
 
-      // Find the task element the tag was dropped onto (kanban card or list row)
       const cardEl = evt.to.closest('.task-card') || evt.to.closest('.list-task-row');
       if (!cardEl) return;
 
@@ -580,7 +726,6 @@ function initTagSortable() {
         const tagId = evt.item.dataset.tagId;
         const taskId = card.dataset.taskId;
 
-        // Remove the cloned element
         evt.item.remove();
 
         const task = state.session.tasks.find(t => t.id === taskId);
@@ -693,4 +838,51 @@ function initEventHandlers() {
   // View toggle
   document.getElementById('kanban-view-btn').addEventListener('click', () => switchViewMode('kanban'));
   document.getElementById('list-view-btn').addEventListener('click', () => switchViewMode('list'));
+
+  // Mobile column tabs
+  document.querySelectorAll('.column-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      state.mobileActiveColumn = tab.dataset.status;
+      updateMobileColumns();
+    });
+  });
+
+  // Tag toggle button (mobile)
+  const tagToggleBtn = document.getElementById('tag-toggle-btn');
+  const tagSidebar = document.getElementById('tag-sidebar');
+
+  tagToggleBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    tagSidebar.classList.toggle('open');
+  });
+
+  // Close tag drawer when clicking outside
+  document.addEventListener('click', (e) => {
+    if (tagSidebar.classList.contains('open') &&
+        !tagSidebar.contains(e.target) &&
+        e.target !== tagToggleBtn) {
+      tagSidebar.classList.remove('open');
+    }
+  });
+
+  // Task modal handlers
+  document.getElementById('task-modal-close').addEventListener('click', closeTaskModal);
+  document.getElementById('task-modal').addEventListener('click', (e) => {
+    if (e.target.id === 'task-modal') closeTaskModal();
+  });
+  document.getElementById('task-modal-save').addEventListener('click', saveTaskModal);
+  document.getElementById('task-modal-delete').addEventListener('click', deleteTask);
+
+  // Add tag from modal dropdown
+  document.getElementById('task-modal-tag-add').addEventListener('change', (e) => {
+    const tagId = e.target.value;
+    if (!tagId || !modalTaskId) return;
+    const task = state.session.tasks.find(t => t.id === modalTaskId);
+    if (!task || task.tagIds.includes(tagId)) return;
+    task.tagIds.push(tagId);
+    renderModalTags(task);
+    // Remove from dropdown
+    e.target.querySelector(`option[value="${tagId}"]`).remove();
+    e.target.value = '';
+  });
 }

@@ -43,7 +43,8 @@ body {
   font-size: 14px;
 }
 
-.modal-content input {
+.modal-content input[type="text"],
+.modal-content input[type="password"] {
   width: 100%;
   padding: 10px 12px;
   border: 1px solid #ccc;
@@ -52,7 +53,7 @@ body {
   margin-bottom: 12px;
 }
 
-.modal-content button {
+.modal-content > button {
   width: 100%;
   padding: 10px;
   background: #4a90d9;
@@ -63,7 +64,7 @@ body {
   cursor: pointer;
 }
 
-.modal-content button:hover {
+.modal-content > button:hover {
   background: #357abd;
 }
 
@@ -71,6 +72,115 @@ body {
   color: #d9534f;
   font-size: 13px;
   margin-top: 8px;
+}
+
+/* --- Task Detail Modal --- */
+.task-modal-content {
+  width: 500px;
+  max-width: 90%;
+}
+
+.task-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.task-modal-close-btn {
+  width: auto !important;
+  background: none !important;
+  color: #999 !important;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  padding: 0 4px !important;
+  line-height: 1;
+}
+
+.task-modal-close-btn:hover {
+  color: #333 !important;
+}
+
+#task-modal-content {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 14px;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 80px;
+  margin-bottom: 12px;
+}
+
+.task-modal-field {
+  margin-bottom: 12px;
+}
+
+.task-modal-field label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: #555;
+  margin-bottom: 4px;
+}
+
+.task-modal-field select {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 14px;
+  background: #fff;
+}
+
+#task-modal-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+  min-height: 28px;
+}
+
+#task-modal-tags .tag-badge {
+  font-size: 13px;
+  padding: 4px 8px;
+}
+
+.task-modal-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.btn-primary {
+  flex: 1;
+  padding: 10px;
+  background: #5cb85c;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.btn-primary:hover {
+  background: #4cae4c;
+}
+
+.btn-danger {
+  padding: 10px 20px;
+  background: #d9534f;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.btn-danger:hover {
+  background: #c9302c;
 }
 
 /* --- Top Bar --- */
@@ -127,6 +237,11 @@ body {
 
 .view-btn:hover:not(.active) {
   background: #e0e4ea;
+}
+
+/* --- Column Tabs (mobile only) --- */
+.column-tabs {
+  display: none;
 }
 
 /* --- Task Input --- */
@@ -394,4 +509,201 @@ body {
 
 #add-tag-btn:hover {
   background: #357abd;
+}
+
+/* --- Tag Toggle Button (mobile) --- */
+.tag-toggle-btn {
+  display: none;
+}
+
+/* ========================================
+   Mobile Responsive (768px and below)
+   ======================================== */
+@media (max-width: 768px) {
+  /* Top bar: compact & wrap */
+  #top-bar {
+    flex-wrap: wrap;
+    padding: 8px 12px;
+    gap: 8px;
+  }
+
+  #new-session-btn {
+    font-size: 13px;
+    padding: 6px 12px;
+  }
+
+  #session-time {
+    font-size: 12px;
+    width: 100%;
+    order: 3;
+  }
+
+  #view-toggle {
+    margin-left: auto;
+  }
+
+  /* Task input: compact */
+  #task-input-area {
+    padding: 8px 12px;
+  }
+
+  /* Column tabs: show on mobile */
+  .column-tabs {
+    display: flex;
+    background: #fff;
+    border-bottom: 1px solid #ddd;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .column-tab {
+    flex: 1;
+    padding: 10px 8px;
+    border: none;
+    background: #f0f2f5;
+    color: #555;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    border-bottom: 3px solid transparent;
+  }
+
+  .column-tab.active {
+    background: #fff;
+    color: #4a90d9;
+    border-bottom-color: #4a90d9;
+  }
+
+  /* Main content: single column, no sidebar */
+  #main-content {
+    grid-template-columns: 1fr;
+    height: calc(100vh - 160px);
+  }
+
+  /* Board: single column, show only active column */
+  #board {
+    grid-template-columns: 1fr;
+    gap: 0;
+    padding: 12px;
+  }
+
+  #board .column {
+    display: none;
+  }
+
+  #board .column.mobile-active {
+    display: flex;
+  }
+
+  #board .column h3 {
+    display: none;
+  }
+
+  /* Tag sidebar: hidden by default, drawer on mobile */
+  #tag-sidebar {
+    display: none;
+    border-left: none;
+  }
+
+  #tag-sidebar.open {
+    display: block;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    max-height: 50vh;
+    z-index: 50;
+    overflow-y: auto;
+    border-top: 2px solid #ddd;
+    background: #fff;
+    padding: 16px;
+    border-radius: 12px 12px 0 0;
+    box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.15);
+  }
+
+  /* Tag toggle button: show on mobile */
+  .tag-toggle-btn {
+    display: block;
+    position: fixed;
+    bottom: 16px;
+    right: 16px;
+    z-index: 51;
+    padding: 12px 20px;
+    background: #4a90d9;
+    color: #fff;
+    border: none;
+    border-radius: 24px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  }
+
+  .tag-toggle-btn:hover {
+    background: #357abd;
+  }
+
+  /* Task cards: larger touch targets */
+  .task-card {
+    padding: 12px;
+    font-size: 14px;
+  }
+
+  /* List view */
+  .list-task-row {
+    flex-wrap: wrap;
+    padding: 12px;
+    gap: 8px;
+  }
+
+  .list-task-content {
+    font-size: 14px;
+    width: calc(100% - 40px);
+  }
+
+  .list-task-tags {
+    width: 100%;
+    order: 3;
+  }
+
+  .list-status-select {
+    margin-left: auto;
+    font-size: 13px;
+    padding: 6px 10px;
+  }
+
+  /* Task modal: full screen on mobile */
+  .task-modal-content {
+    width: 100%;
+    max-width: 100%;
+    height: 100%;
+    border-radius: 0;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+  }
+
+  #task-modal-content {
+    flex: 1;
+    min-height: 100px;
+  }
+}
+
+/* Extra small screens */
+@media (max-width: 480px) {
+  .column-tab {
+    font-size: 11px;
+    padding: 8px 4px;
+  }
+
+  #new-session-btn {
+    font-size: 12px;
+    padding: 6px 10px;
+  }
+
+  .view-btn {
+    font-size: 12px;
+    padding: 5px 10px;
+  }
 }

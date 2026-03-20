@@ -35,6 +35,37 @@
     </div>
   </div>
 
+  <!-- Task detail modal -->
+  <div id="task-modal" class="modal-overlay hidden">
+    <div class="modal-content task-modal-content">
+      <div class="task-modal-header">
+        <h2>Edit Task</h2>
+        <button id="task-modal-close" class="task-modal-close-btn">&times;</button>
+      </div>
+      <textarea id="task-modal-content" rows="4" placeholder="Task content..."></textarea>
+      <div class="task-modal-field">
+        <label for="task-modal-status">Status</label>
+        <select id="task-modal-status">
+          <option value="todo">Todo</option>
+          <option value="in_progress">In Progress</option>
+          <option value="waiting">Waiting</option>
+          <option value="done">Done</option>
+        </select>
+      </div>
+      <div class="task-modal-field">
+        <label>Tags</label>
+        <div id="task-modal-tags"></div>
+        <select id="task-modal-tag-add">
+          <option value="">+ Add tag...</option>
+        </select>
+      </div>
+      <div class="task-modal-actions">
+        <button id="task-modal-save" class="btn-primary">Save</button>
+        <button id="task-modal-delete" class="btn-danger">Delete</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Main app -->
   <div id="app" class="hidden">
     <!-- Top bar -->
@@ -51,6 +82,14 @@
     <div id="task-input-area">
       <input type="text" id="task-input" placeholder="Enter new task...">
       <button id="add-task-btn">Add</button>
+    </div>
+
+    <!-- Mobile column tabs (visible on mobile only) -->
+    <div id="column-tabs" class="column-tabs">
+      <button class="column-tab active" data-status="todo">Todo</button>
+      <button class="column-tab" data-status="in_progress">In Progress</button>
+      <button class="column-tab" data-status="waiting">Waiting</button>
+      <button class="column-tab" data-status="done">Done</button>
     </div>
 
     <!-- Board + Sidebar -->
@@ -87,6 +126,9 @@
         </div>
       </aside>
     </div>
+
+    <!-- Tag toggle button (mobile only) -->
+    <button id="tag-toggle-btn" class="tag-toggle-btn">Tags</button>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js"></script>

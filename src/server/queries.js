@@ -85,6 +85,11 @@ async function updateTaskStatus(db, taskId, status) {
   await db.execute({ sql: 'UPDATE tasks SET status = ? WHERE id = ?', args: [status, taskId] });
 }
 
+async function deleteTask(db, taskId) {
+  await db.execute({ sql: 'DELETE FROM task_tags WHERE task_id = ?', args: [taskId] });
+  await db.execute({ sql: 'DELETE FROM tasks WHERE id = ?', args: [taskId] });
+}
+
 async function updateTaskContent(db, taskId, content) {
   await db.execute({ sql: 'UPDATE tasks SET content = ? WHERE id = ?', args: [content, taskId] });
 }
@@ -175,6 +180,7 @@ module.exports = {
   createTask,
   getTask,
   updateTaskStatus,
+  deleteTask,
   updateTaskContent,
   setTaskTagIds,
   removeTaskTag,

@@ -177,6 +177,20 @@ function createRoutes(getDb) {
     res.json(await q.getTask(db, req.params.id));
   });
 
+  // DELETE /api/task/:id
+  router.delete('/task/:id', async (req, res) => {
+    const db = requireDb(res);
+    if (!db) return;
+
+    const task = await q.getTask(db, req.params.id);
+    if (!task) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+
+    await q.deleteTask(db, req.params.id);
+    res.json({ success: true });
+  });
+
   // DELETE /api/task/:id/tags/:tagId
   router.delete('/task/:id/tags/:tagId', async (req, res) => {
     const db = requireDb(res);
