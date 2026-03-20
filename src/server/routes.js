@@ -177,6 +177,35 @@ function createRoutes(getStorageFolder) {
     res.json(task);
   });
 
+  // PUT /api/tasks/order
+  router.put('/tasks/order', (req, res) => {
+    const folder = requireFolder(res);
+    if (!folder) return;
+
+    const { taskIds } = req.body;
+    if (!Array.isArray(taskIds)) {
+      return res.status(400).json({ error: 'taskIds must be an array' });
+    }
+
+    const files = getSessionFiles(folder);
+    if (files.length === 0) {
+      return res.status(400).json({ error: 'No active session' });
+    }
+
+    const session = readSession(folder, files[0]);
+    const reordered = [];
+    taskIds.forEach(id => {
+      const task = session.tasks.find(t => t.id === id);
+      if (task) reordered.push(task);
+    });
+    session.tasks.forEach(t => {
+      if (!taskIds.includes(t.id)) reordered.push(t);
+    });
+    session.tasks = reordered;
+    writeSession(folder, files[0], session);
+    res.json({ success: true });
+  });
+
   // --- Tag Routes ---
 
   // GET /api/tags

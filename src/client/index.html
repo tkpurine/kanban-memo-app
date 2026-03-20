@@ -24,6 +24,10 @@
     <header id="top-bar">
       <button id="new-session-btn">+ New Session</button>
       <span id="session-time"></span>
+      <div id="view-toggle">
+        <button id="kanban-view-btn" class="view-btn active">かんばん</button>
+        <button id="list-view-btn" class="view-btn">一覧</button>
+      </div>
     </header>
 
     <!-- Task input -->
@@ -51,6 +55,10 @@
           <h3>Done</h3>
           <div class="task-list"></div>
         </div>
+      </div>
+
+      <div id="list-view" class="hidden">
+        <div id="list-task-list"></div>
       </div>
 
       <aside id="tag-sidebar">
