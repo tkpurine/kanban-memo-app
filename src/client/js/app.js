@@ -257,6 +257,53 @@ function renderListView() {
     content.textContent = task.content;
     row.appendChild(content);
 
+    // Double-click to edit in list view
+    content.addEventListener('dblclick', (e) => {
+      e.stopPropagation();
+      if (content.contentEditable === 'true') return;
+
+      content.contentEditable = 'true';
+      content.classList.add('editing');
+      content.focus();
+
+      const range = document.createRange();
+      range.selectNodeContents(content);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+
+      async function save() {
+        content.contentEditable = 'false';
+        content.classList.remove('editing');
+        const newText = content.textContent.trim();
+        if (!newText || newText === task.content) {
+          content.textContent = task.content;
+          return;
+        }
+        try {
+          const updated = await api('PUT', `/api/task/${task.id}`, { content: newText });
+          const idx = state.session.tasks.findIndex(t => t.id === task.id);
+          if (idx !== -1) state.session.tasks[idx] = updated;
+          content.textContent = updated.content;
+        } catch (err) {
+          content.textContent = task.content;
+          alert(err.message);
+        }
+      }
+
+      content.addEventListener('blur', save, { once: true });
+      content.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter') {
+          ev.preventDefault();
+          content.blur();
+        }
+        if (ev.key === 'Escape') {
+          content.textContent = task.content;
+          content.blur();
+        }
+      });
+    });
+
     const tagsContainer = document.createElement('div');
     tagsContainer.className = 'task-tags list-task-tags';
     task.tagIds.forEach(tagId => {
@@ -292,7 +339,8 @@ function renderListView() {
     [
       { value: 'todo', label: 'Todo' },
       { value: 'in_progress', label: 'In Progress' },
-      { value: 'waiting', label: 'Waiting' }
+      { value: 'waiting', label: 'Waiting' },
+      { value: 'done', label: 'Done' }
     ].forEach(opt => {
       const option = document.createElement('option');
       option.value = opt.value;
@@ -525,7 +573,7 @@ function initEventHandlers() {
 
   addTaskBtn.addEventListener('click', addTask);
   taskInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') addTask();
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) addTask();
   });
 
   // New session
@@ -560,7 +608,7 @@ function initEventHandlers() {
 
   addTagBtn.addEventListener('click', addTag);
   tagInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') addTag();
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) addTag();
   });
 
   // View toggle

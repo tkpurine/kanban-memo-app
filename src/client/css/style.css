@@ -308,6 +308,14 @@ body {
   line-height: 1.4;
 }
 
+.list-task-content.editing {
+  outline: 2px solid #4a90d9;
+  border-radius: 3px;
+  padding: 2px 4px;
+  background: #fff;
+  min-height: 1.4em;
+}
+
 .list-task-tags {
   display: flex;
   flex-wrap: wrap;
