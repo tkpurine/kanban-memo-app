@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: kanban-memo-app
+    runtime: node
+    buildCommand: npm install
+    startCommand: node src/server/index.js
+    envVars:
+      - key: STORAGE_FOLDER
+        value: /data/kanban
+      - key: APP_PASSWORD
+        sync: false  # Set manually in Render dashboard
+      - key: NODE_ENV
+        value: production
+    disk:
+      name: kanban-data
+      mountPath: /data
+      sizeGB: 1
