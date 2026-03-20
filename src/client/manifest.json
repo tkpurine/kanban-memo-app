@@ -1,0 +1,16 @@
+{
+  "name": "Kanban Memo",
+  "short_name": "KanbanMemo",
+  "description": "A kanban-style task management app",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#4a90d9",
+  "icons": [
+    {
+      "src": "icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
