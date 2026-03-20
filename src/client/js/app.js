@@ -507,27 +507,16 @@ function renderListView() {
     content.textContent = task.content;
     row.appendChild(content);
 
-    // Track if a drag is in progress to prevent modal opening
-    let isDragging = false;
-    handle.addEventListener('touchstart', () => { isDragging = true; }, { passive: true });
-    handle.addEventListener('mousedown', () => { isDragging = true; });
-    row.addEventListener('touchend', () => { setTimeout(() => { isDragging = false; }, 300); }, { passive: true });
-    row.addEventListener('mouseup', () => { setTimeout(() => { isDragging = false; }, 300); });
-
-    // Click/tap to open modal, double-click for inline edit
+    // Click/tap on content area to open modal, double-click for inline edit
     let clickTimer = null;
 
-    row.addEventListener('click', (e) => {
-      if (isDragging) return;
-      if (e.target.classList.contains('tag-remove')) return;
-      if (e.target.closest('.list-drag-handle')) return;
-      if (e.target.tagName === 'SELECT' || e.target.tagName === 'OPTION') return;
+    content.addEventListener('click', (e) => {
       if (content.contentEditable === 'true') return;
       if (clickTimer) return;
       clickTimer = setTimeout(() => {
         clickTimer = null;
-        if (!isDragging) openTaskModal(task.id);
-      }, isTouchDevice ? 200 : 250);
+        openTaskModal(task.id);
+      }, isTouchDevice ? 0 : 250);
     });
 
     if (!isTouchDevice) {
@@ -622,6 +611,7 @@ function renderTags() {
 // --- SortableJS Setup ---
 let tagSortableInstance = null;
 let listSortableInstance = null;
+let listDragging = false;
 
 function initSortable() {
   document.querySelectorAll('.task-list').forEach(list => {
@@ -660,8 +650,9 @@ function initListSortable() {
     handle: '.list-drag-handle',
     ghostClass: 'sortable-ghost',
     chosenClass: 'sortable-chosen',
-    forceFallback: true,
+    onStart: () => { listDragging = true; },
     onEnd: async () => {
+      listDragging = false;
       const visibleTaskIds = [...container.querySelectorAll('.list-task-row')].map(el => el.dataset.taskId);
       const doneTaskIds = state.session.tasks.filter(t => t.status === 'done').map(t => t.id);
       const allTaskIds = [...visibleTaskIds, ...doneTaskIds];

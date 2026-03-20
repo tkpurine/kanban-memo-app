@@ -1,4 +1,4 @@
-const CACHE_NAME = 'kanban-memo-v4';
+const CACHE_NAME = 'kanban-memo-v5';
 const STATIC_ASSETS = [
   '/',
   '/css/style.css',
