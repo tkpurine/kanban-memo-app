@@ -251,6 +251,29 @@ function createRoutes(getDb) {
     res.json(tag);
   });
 
+  // PUT /api/tags/:id
+  router.put('/tags/:id', async (req, res) => {
+    const db = requireDb(res);
+    if (!db) return;
+
+    const { name } = req.body;
+    if (!name || !name.trim()) {
+      return res.status(400).json({ error: 'Tag name is required' });
+    }
+
+    const tag = await q.updateTag(db, req.params.id, name.trim());
+    res.json(tag);
+  });
+
+  // DELETE /api/tags/:id
+  router.delete('/tags/:id', async (req, res) => {
+    const db = requireDb(res);
+    if (!db) return;
+
+    await q.deleteTag(db, req.params.id);
+    res.json({ success: true });
+  });
+
   return router;
 }
 

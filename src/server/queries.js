@@ -137,6 +137,16 @@ async function createTag(db, id, name) {
   return { id, name };
 }
 
+async function updateTag(db, tagId, name) {
+  await db.execute({ sql: 'UPDATE tags SET name = ? WHERE id = ?', args: [name, tagId] });
+  return { id: tagId, name };
+}
+
+async function deleteTag(db, tagId) {
+  await db.execute({ sql: 'DELETE FROM task_tags WHERE tag_id = ?', args: [tagId] });
+  await db.execute({ sql: 'DELETE FROM tags WHERE id = ?', args: [tagId] });
+}
+
 async function importJsonData(db, jsonData) {
   let importedSessions = 0;
 
@@ -189,5 +199,7 @@ module.exports = {
   getAllTags,
   getMaxTagNum,
   createTag,
+  updateTag,
+  deleteTag,
   importJsonData
 };
