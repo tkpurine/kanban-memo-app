@@ -825,7 +825,7 @@ function initTagSortable() {
       group: {
         name: 'tags',
         pull: false,
-        put: true
+        put: ['tags']
       },
       sort: false,
       onAdd: async (evt) => {
@@ -858,7 +858,7 @@ function initTagSortable() {
       group: {
         name: 'tags',
         pull: false,
-        put: true
+        put: ['tags']
       },
       sort: false,
       onAdd: async (evt) => {
